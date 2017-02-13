@@ -1,0 +1,91 @@
+---
+title: "DATA_608_HW1"
+author: "Logan Thomson"
+date: "1/31/2017"
+output: html_document
+---
+
+```{r load_pkgs, message=FALSE, warning=FALSE}
+packages <- c("tidyr", "dplyr", "ggplot2")
+lapply(packages, library, character.only = T)
+```  
+
+```{r load_data}
+file <- "./Data/inc5000_data.csv"
+inc <- read.csv(file, header=T, stringsAsFactors = F)
+```  
+
+1. Create a graph that shows the distribution of companies in the dataset by State (ie how many are in each state). There are a lot of States, so consider which axis you should use assuming I am using a ‘portrait’ oriented screen (ie taller than wide).
+
+```{r by_state}
+st_count <- inc %>%
+  group_by(State) %>%
+  summarise(Count = n()) %>%
+  arrange(desc(Count))
+
+# st_count <- inc %>%
+# select(State)
+
+st_count$State <- factor(st_count$State, levels = st_count$State[order(st_count$Count)])
+```  
+
+```{r by_st_plot, fig.height=10, fig.width=6}
+g <- ggplot(st_count, aes(x=State, y=Count)) + geom_bar(stat="identity", width=.75, fill="cyan3") + coord_flip()
+g <- g + labs(y="Count of Companies", title="SHARE OF 5000 FASTEST GROWING COMPANIES, by State") + theme_minimal()
+g + geom_text(aes(label=Count), size=3)
+```  
+
+2. Let’s dig in on the State with the 3^rd^ most companies in the data set. Imagine you work for the state and are interested in how many people are employed by companies in different industries employ. Create a plot of average employment by industry for companies in this state (only use cases with full data (user R’s complete.cases() function). Your graph should show how variable the ranges are, and exclude outliers.  
+
+```{r}
+ny <- inc %>%
+  filter(State == "NY")
+
+nrow(ny) == sum(complete.cases(ny))  # no. of complete cases equals no. of rows
+
+ny_rem_out <- ny %>%
+  filter(Employees < 10000)  # mean employees is ~271, sd = 1916, remove the two values above 3 * sd
+
+#ny_rem_out %>% 
+#  group_by(Industry) %>%
+#  summarise(Avg_Employ = mean(Employees)) %>%
+#  arrange(desc(Avg_Employ))
+```  
+
+
+```{r ny_emp_plot, fig.width=10, fig.height=8}
+ny_g <- ggplot(ny_rem_out, aes(x=Industry, y=Employees)) 
+ny_g <- ny_g + geom_boxplot(varwidth = TRUE, outlier.color=NA) + coord_cartesian(ylim = c(0, 1200)) 
+ny_g <- ny_g + theme(panel.grid.major = element_line(color="cyan3", linetype = "dotted"), panel.background = element_rect(fill="white"), axis.text.x = element_text(angle=90, hjust=1, vjust=.5, size=12), axis.text.y = element_text(size=10))
+ny_g <- ny_g + labs(title="AVERAGE EMPLOYMENT BY INDUSTRY, NEW YORK STATE")
+
+ny_g
+```  
+
+3. Now imagine you work for an investor and want to see which industries generate the most revenue per employee. Create a chart makes this information clear.  
+
+```{r rev_by_industry}
+rev_by_emp <- inc %>%
+  mutate(rpe = Revenue/Employees)
+
+rev_by_emp <- na.omit(rev_by_emp)
+
+ind_rev <- rev_by_emp %>%
+  group_by(Industry) %>%
+  summarise(Avg_Revenue = mean(rpe))
+
+ind_count <- rev_by_emp %>%
+  count(Industry)
+
+industry <- full_join(ind_rev, ind_count, by="Industry")
+colnames(industry)[3] <- "No_Companies"
+```  
+
+```{r industry_plot}
+ind_plot <- ggplot(industry, aes(x=No_Companies, y=Avg_Revenue, label=Industry)) 
+ind_plot <- ind_plot + geom_point(aes(size=Avg_Revenue, color=Industry), alpha=.7) 
+ind_plot <- ind_plot + theme(legend.position = "none") + geom_text(aes(size=Avg_Revenue), hjust=0, vjust=1) 
+ind_plot <- ind_plot + scale_size(range=c(3,5)) + labs(title="AVG. REVENUE PER EMPLOYEE", x="Number of Companies", y="Avg. Revenue per Employee") + scale_y_continuous(labels=scales::dollar)
+ind_plot
+```  
+
